@@ -1,0 +1,369 @@
+@page "/dashboard"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using System.Security.Claims
+@using SubscriptionPlatform.Client1.UserPortal.Services
+@inject ISubscriptionService SubscriptionService
+@inject ILogger<Dashboard> Logger
+
+<PageTitle>Mi Suscripción - EduPlatform</PageTitle>
+
+<div class="page-hero">
+    <div class="container-xl">
+        <h1><i class="bi bi-person-circle"></i> Hola, @userName</h1>
+        <p>Gestiona tu plan, métodos de pago y facturación desde un solo lugar</p>
+    </div>
+</div>
+
+<div class="container-xl py-4">
+
+    @if (loading)
+    {
+        <div class="d-flex justify-content-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+        </div>
+    }
+    else if (subscription != null)
+    {
+        <!-- RESUMEN DE SUSCRIPCIÓN -->
+        <div class="row g-4 mb-4">
+            <div class="col-lg-4">
+                <div class="stat-card stat-card-primary h-100">
+                    <div class="stat-icon"><i class="bi bi-award"></i></div>
+                    <div>
+                        <div class="stat-label">Plan Actual</div>
+                        <div class="stat-value">@subscription.PlanType</div>
+                        @if (subscription.IsActive)
+                        {
+                            <span class="badge badge-soft-success">● Activo</span>
+                        }
+                        else
+                        {
+                            <span class="badge badge-soft-warning">● Sin activar</span>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="stat-card stat-card-info h-100">
+                    <div class="stat-icon"><i class="bi bi-calendar-event"></i></div>
+                    <div>
+                        <div class="stat-label">Próximo Cobro</div>
+                        <div class="stat-value fs-4">
+                            @if (subscription.NextBillingDate.HasValue)
+                            {
+                                @subscription.NextBillingDate.Value.ToLocalTime().ToString("dd MMM yyyy")
+                            }
+                            else
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                        </div>
+                        <small class="text-muted">Renovación mensual automática</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="stat-card stat-card-success h-100">
+                    <div class="stat-icon"><i class="bi bi-credit-card"></i></div>
+                    <div>
+                        <div class="stat-label">Método de Pago</div>
+                        <div class="stat-value fs-4">@subscription.PaymentMethod</div>
+                        <small class="text-muted">Se usa en cada renovación</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MÉTODO DE PAGO -->
+        <div class="content-card mb-4">
+            <div class="content-card-header">
+                <h5><i class="bi bi-wallet2"></i> Método de Pago</h5>
+                <span class="text-muted small">Elige cómo quieres pagar tu suscripción</span>
+            </div>
+            <div class="row g-3 p-3">
+                @foreach (var method in paymentMethods)
+                {
+                    <div class="col-6 col-md-3">
+                        <div class="payment-method @(selectedPaymentMethod == method.Name ? "selected" : "")"
+                             @onclick="() => selectedPaymentMethod = method.Name">
+                            <div class="payment-method-icon">@method.Icon</div>
+                            <div class="payment-method-name">@method.Name</div>
+                            @if (selectedPaymentMethod == method.Name)
+                            {
+                                <div class="payment-method-check"><i class="bi bi-check-circle-fill"></i></div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- PLANES -->
+        <div class="content-card mb-4">
+            <div class="content-card-header">
+                <h5><i class="bi bi-stars"></i> Planes Disponibles</h5>
+                <span class="text-muted small">El cambio se aplica de inmediato al confirmar el pago</span>
+            </div>
+            <div class="row g-4 p-3">
+                <div class="col-md-4">
+                    <div class="plan-card @(subscription.PlanType == "Basic" && subscription.IsActive ? "plan-current" : "")">
+                        <div class="plan-name">Básico</div>
+                        <div class="plan-price">$9.99<span>/mes</span></div>
+                        <ul class="plan-features">
+                            <li><i class="bi bi-check2"></i> 2 cursos incluidos</li>
+                            <li><i class="bi bi-check2"></i> Soporte por email</li>
+                            <li><i class="bi bi-check2"></i> Certificados digitales</li>
+                        </ul>
+                        @if (subscription.PlanType == "Basic" && subscription.IsActive)
+                        {
+                            <button class="btn btn-outline-success w-100" disabled>✓ Plan Actual</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-outline-primary w-100"
+                                    @onclick='() => ProcessPayment("Basic")' disabled="@processing">
+                                Elegir Básico
+                            </button>
+                        }
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="plan-card plan-featured @(subscription.PlanType == "Premium" && subscription.IsActive ? "plan-current" : "")">
+                        <div class="plan-badge">Más popular</div>
+                        <div class="plan-name">Premium</div>
+                        <div class="plan-price">$19.99<span>/mes</span></div>
+                        <ul class="plan-features">
+                            <li><i class="bi bi-check2"></i> 4 cursos incluidos</li>
+                            <li><i class="bi bi-check2"></i> Soporte prioritario</li>
+                            <li><i class="bi bi-check2"></i> Certificados digitales</li>
+                            <li><i class="bi bi-check2"></i> Comunidad exclusiva</li>
+                        </ul>
+                        @if (subscription.PlanType == "Premium" && subscription.IsActive)
+                        {
+                            <button class="btn btn-success w-100" disabled>✓ Plan Actual</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-primary w-100"
+                                    @onclick='() => ProcessPayment("Premium")' disabled="@processing">
+                                Mejorar a Premium
+                            </button>
+                        }
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="plan-card @(subscription.PlanType == "Enterprise" && subscription.IsActive ? "plan-current" : "")">
+                        <div class="plan-name">Enterprise</div>
+                        <div class="plan-price">$49.99<span>/mes</span></div>
+                        <ul class="plan-features">
+                            <li><i class="bi bi-check2"></i> Todos los cursos (6)</li>
+                            <li><i class="bi bi-check2"></i> Soporte 24/7</li>
+                            <li><i class="bi bi-check2"></i> Certificados digitales</li>
+                            <li><i class="bi bi-check2"></i> Comunidad exclusiva</li>
+                            <li><i class="bi bi-check2"></i> Mentoría personalizada</li>
+                        </ul>
+                        @if (subscription.PlanType == "Enterprise" && subscription.IsActive)
+                        {
+                            <button class="btn btn-success w-100" disabled>✓ Plan Actual</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-dark w-100"
+                                    @onclick='() => ProcessPayment("Enterprise")' disabled="@processing">
+                                Mejorar a Enterprise
+                            </button>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(message))
+        {
+            <div class="alert @alertClass d-flex align-items-center gap-2" role="alert">
+                @if (processing)
+                {
+                    <div class="spinner-border spinner-border-sm"></div>
+                }
+                <div>@message</div>
+            </div>
+        }
+
+        <!-- HISTORIAL RECIENTE -->
+        <div class="content-card mb-4">
+            <div class="content-card-header">
+                <h5><i class="bi bi-clock-history"></i> Últimos Pagos</h5>
+                <a href="/historial" class="btn btn-sm btn-outline-primary">Ver historial completo</a>
+            </div>
+            <div class="p-3">
+                @if (recentPayments.Count == 0)
+                {
+                    <p class="text-muted mb-0">Aún no tienes pagos registrados.</p>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-modern align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Plan</th>
+                                    <th>Método</th>
+                                    <th class="text-end">Monto</th>
+                                    <th class="text-center">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var p in recentPayments.Take(3))
+                                {
+                                    <tr>
+                                        <td>@p.PaidAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                                        <td><span class="badge badge-soft-primary">@p.PlanType</span></td>
+                                        <td>@p.PaymentMethod</td>
+                                        <td class="text-end fw-semibold">$@p.Amount.ToString("0.00")</td>
+                                        <td class="text-center"><span class="badge badge-soft-success">@p.Status</span></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="alert alert-info d-flex align-items-center gap-2">
+            <i class="bi bi-mortarboard fs-4"></i>
+            <div>
+                Tras confirmar un pago, tus cursos se desbloquean automáticamente en la
+                <a href="@($"https://localhost:7002/cursos?userId={userId}")" target="_blank" class="alert-link">
+                    Plataforma de Aprendizaje
+                </a>.
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle"></i>
+            No se pudo cargar tu información. Verifica que los servicios estén activos.
+        </div>
+    }
+</div>
+
+@code {
+    private UserSubscription? subscription;
+    private List<PaymentHistoryEntry> recentPayments = new();
+    private bool loading = true;
+    private bool processing = false;
+    private string message = "";
+    private string alertClass = "alert-info";
+    private string selectedPaymentMethod = "Tarjeta de Crédito";
+
+    private Guid userId;
+    private string userName = "";
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthState { get; set; }
+
+    private record PayMethod(string Name, string Icon);
+    private readonly List<PayMethod> paymentMethods = new()
+    {
+        new("Tarjeta de Crédito", "💳"),
+        new("Tarjeta de Débito", "🏧"),
+        new("PayPal", "🅿️"),
+        new("Transferencia", "🏦")
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthState != null)
+        {
+            var auth = await AuthState;
+            var idClaim = auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            userName = auth.User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "Estudiante";
+
+            if (Guid.TryParse(idClaim, out var id))
+            {
+                userId = id;
+            }
+        }
+
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        loading = true;
+        try
+        {
+            subscription = await SubscriptionService.GetUserSubscriptionAsync(userId);
+            recentPayments = await SubscriptionService.GetPaymentHistoryAsync(userId);
+
+            if (subscription != null && subscription.PaymentMethod != "Sin configurar")
+            {
+                selectedPaymentMethod = subscription.PaymentMethod;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Error cargando datos: {ex}");
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task ProcessPayment(string planType)
+    {
+        try
+        {
+            processing = true;
+            alertClass = "alert-info";
+            message = $"Procesando pago con {selectedPaymentMethod}...";
+
+            var request = new PaymentRequest
+            {
+                UserId = userId,
+                Amount = GetPriceForPlan(planType),
+                PlanType = planType,
+                PaymentMethod = selectedPaymentMethod
+            };
+
+            var response = await SubscriptionService.ProcessPaymentAsync(request);
+
+            if (response.Success)
+            {
+                alertClass = "alert-success";
+                message = "¡Pago procesado! Tus cursos se están activando en la plataforma de aprendizaje.";
+                await LoadData();
+            }
+            else
+            {
+                alertClass = "alert-warning";
+                message = response.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            alertClass = "alert-danger";
+            message = $"Error: {ex.Message}";
+            Logger.LogError($"Error procesando pago: {ex}");
+        }
+        finally
+        {
+            processing = false;
+        }
+    }
+
+    private decimal GetPriceForPlan(string planType) => planType switch
+    {
+        "Basic" => 9.99m,
+        "Premium" => 19.99m,
+        "Enterprise" => 49.99m,
+        _ => 0
+    };
+}

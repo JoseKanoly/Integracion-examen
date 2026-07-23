@@ -1,0 +1,298 @@
+@page "/cursos"
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+@using SubscriptionPlatform.Client2.LearningPlatform.Services
+@using SubscriptionPlatform.Shared.Models
+@inject IProvisioningService ProvisioningService
+@inject ILogger<Cursos> Logger
+
+<PageTitle>Mis Cursos - EduPlatform</PageTitle>
+
+<div class="page-hero">
+    <div class="container-xl">
+        <h1><i class="bi bi-mortarboard"></i> Aula Virtual</h1>
+        <p>Tus cursos activos se actualizan automáticamente al confirmar un pago</p>
+    </div>
+</div>
+
+<div class="container-xl py-4">
+
+    @if (loading)
+    {
+        <div class="d-flex justify-content-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+        </div>
+    }
+    else if (userAccess != null)
+    {
+        <div class="content-card mb-4">
+            <div class="p-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <h5 class="mb-1">
+                        Plan <span class="badge badge-soft-primary fs-6">@userAccess.PlanType</span>
+                        @if (userAccess.HasPremiumAccess)
+                        {
+                            <span class="badge badge-soft-success fs-6 ms-1">Premium ✓</span>
+                        }
+                    </h5>
+                    <small class="text-muted">
+                        Activado: @userAccess.ActivatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")
+                        · @userAccess.UnlockedCourses.Count curso(s) desbloqueado(s)
+                    </small>
+                </div>
+                <div class="text-end" style="min-width:180px;">
+                    <div class="progress" style="height:10px;">
+                        <div class="progress-bar bg-success" role="progressbar"
+                             style="width:@(CalculateProgress())%"></div>
+                    </div>
+                    <small class="text-muted">@userAccess.UnlockedCourses.Count de @courses.Count cursos</small>
+                </div>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(updateMessage))
+        {
+            <div class="alert alert-warning d-flex align-items-center gap-2">
+                <i class="bi bi-arrow-repeat"></i> @updateMessage
+            </div>
+        }
+
+        @if (courses.Count > 0)
+        {
+            <div class="row g-4">
+                @foreach (var course in courses)
+                {
+                    <div class="col-md-6 col-lg-4">
+                        <div class="course-card @(course.IsUnlocked ? "" : "locked")">
+                            <div class="course-cover">@GetCourseEmoji(course.Id)</div>
+                            <div class="course-body">
+                                <div class="d-flex justify-content-between align-items-start mb-1">
+                                    <div class="course-title">@course.Name</div>
+                                    @if (course.IsUnlocked)
+                                    {
+                                        <span class="badge badge-soft-success">Desbloqueado</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge-soft-danger">🔒</span>
+                                    }
+                                </div>
+                                <div class="course-desc">@course.Description</div>
+                                <small class="mt-2">
+                                    <span class="text-muted">Requiere:</span>
+                                    <span class="badge @GetBadgeClass(course.PlanRequired)">@course.PlanRequired</span>
+                                </small>
+                            </div>
+                            <div class="course-footer">
+                                @if (course.IsUnlocked)
+                                {
+                                    <a href="#" class="btn btn-primary btn-sm w-100">
+                                        <i class="bi bi-play-fill"></i> Continuar Curso
+                                    </a>
+                                }
+                                else
+                                {
+                                    <a href="@PortalUrl" target="_blank" class="btn btn-outline-secondary btn-sm w-100">
+                                        <i class="bi bi-unlock"></i> Mejorar plan para acceder
+                                    </a>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+
+        @if (userAccess.PlanType != "Enterprise")
+        {
+            <div class="alert alert-info d-flex justify-content-between align-items-center mt-4">
+                <div>
+                    <i class="bi bi-star"></i>
+                    <strong>Desbloquea más cursos</strong> mejorando tu plan en el Portal de Suscripciones.
+                </div>
+                <a href="@PortalUrl" target="_blank" class="btn btn-primary btn-sm">Cambiar Plan</a>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="content-card p-5 text-center">
+            <div style="font-size:2.6rem;">🔐</div>
+            <h5 class="fw-bold mt-2">No hay una suscripción activa</h5>
+            <p class="text-muted">
+                Ve al Portal de Suscripciones, inicia sesión y elige un plan.
+                Tus cursos aparecerán aquí automáticamente.
+            </p>
+            <a href="@PortalUrl" target="_blank" class="btn btn-primary">Ir al Portal de Suscripciones</a>
+        </div>
+    }
+</div>
+
+@code {
+    private UserAccessResponse? userAccess;
+    private List<CourseInfo> courses = new();
+    private bool loading = true;
+    private string updateMessage = "";
+
+    // GUID de demostración usado cuando se navega sin ?userId= (compatibilidad con la demo del examen)
+    private static readonly Guid DemoUserId = Guid.Parse("12345678-1234-1234-1234-123456789012");
+
+    private Guid currentUserId;
+    private CancellationTokenSource? cancellationTokenSource;
+
+    [SupplyParameterFromQuery(Name = "userId")]
+    private string? UserIdParam { get; set; }
+
+    private string PortalUrl =>
+        $"https://localhost:7001/dashboard";
+
+    protected override async Task OnInitializedAsync()
+    {
+        currentUserId = Guid.TryParse(UserIdParam, out var parsed) ? parsed : DemoUserId;
+
+        await LoadData();
+        cancellationTokenSource = new CancellationTokenSource();
+        _ = MonitorChangesInBackground(cancellationTokenSource.Token);
+    }
+
+    private async Task LoadData()
+    {
+        loading = true;
+        try
+        {
+            userAccess = await ProvisioningService.GetUserAccessAsync(currentUserId);
+
+            if (userAccess != null)
+            {
+                courses = await ProvisioningService.GetUserCoursesAsync(currentUserId);
+
+                Logger.LogInformation(
+                    $"✓ Datos cargados: {courses.Count(c => c.IsUnlocked)}/{courses.Count} cursos");
+            }
+            else
+            {
+                Logger.LogWarning("No se encontró acceso para el usuario");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Error cargando datos: {ex}");
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task MonitorChangesInBackground(CancellationToken token)
+    {
+        try
+        {
+            while (!token.IsCancellationRequested)
+            {
+                await Task.Delay(3000, token);
+
+                try
+                {
+                    var newAccess = await ProvisioningService.GetUserAccessAsync(currentUserId);
+
+                    // Primer acceso del usuario (antes no existía)
+                    if (newAccess != null && userAccess == null)
+                    {
+                        updateMessage = "✅ ¡Tu suscripción fue activada!";
+                        userAccess = newAccess;
+                        courses = await ProvisioningService.GetUserCoursesAsync(currentUserId);
+                        await InvokeAsync(StateHasChanged);
+
+                        await Task.Delay(5000, token);
+                        updateMessage = "";
+                        await InvokeAsync(StateHasChanged);
+                        continue;
+                    }
+
+                    if (newAccess != null && userAccess != null)
+                    {
+                        bool hasChanged = newAccess.PlanType != userAccess.PlanType ||
+                                        newAccess.UnlockedCourses.Count != userAccess.UnlockedCourses.Count;
+
+                        if (hasChanged)
+                        {
+                            Logger.LogInformation("📢 Cambios detectados, actualizando...");
+
+                            updateMessage = "🔄 Actualizando tu acceso...";
+                            await InvokeAsync(StateHasChanged);
+
+                            userAccess = newAccess;
+                            courses = await ProvisioningService.GetUserCoursesAsync(currentUserId);
+
+                            updateMessage = "✅ ¡Tu acceso ha sido actualizado!";
+                            await InvokeAsync(StateHasChanged);
+
+                            await Task.Delay(5000, token);
+                            updateMessage = "";
+                            await InvokeAsync(StateHasChanged);
+                        }
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogWarning($"Error en monitoreo: {ex.Message}");
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelación esperada al destruir el componente
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Error en MonitorChangesInBackground: {ex}");
+        }
+    }
+
+    private int CalculateProgress()
+    {
+        if (courses == null || courses.Count == 0)
+            return 0;
+
+        var unlockedCount = courses.Count(c => c.IsUnlocked);
+        return (int)((unlockedCount * 100) / courses.Count);
+    }
+
+    private string GetCourseEmoji(string courseId) => courseId switch
+    {
+        "course-001-csharp-basics" => "💻",
+        "course-002-dotnet-intro" => "🔷",
+        "course-003-entity-framework" => "🗄️",
+        "course-004-asp-net-core" => "🌐",
+        "course-005-microservices" => "🧩",
+        "course-006-cloud-deployment" => "☁️",
+        _ => "📘"
+    };
+
+    private string GetBadgeClass(string planType)
+    {
+        return planType switch
+        {
+            "Basic" => "badge-soft-primary",
+            "Premium" => "badge-soft-success",
+            "Enterprise" => "badge-soft-warning",
+            _ => "bg-secondary"
+        };
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (cancellationTokenSource != null)
+        {
+            await cancellationTokenSource.CancelAsync();
+            cancellationTokenSource.Dispose();
+        }
+    }
+}

@@ -1,0 +1,23 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.4.6">
+
+  <ItemGroup>
+    <ProjectReference Include="..\SubscriptionPlatform.Api1.Subscriptions\SubscriptionPlatform.Api1.Subscriptions.csproj" />
+    <ProjectReference Include="..\SubscriptionPlatform.Api2.Provisioning\SubscriptionPlatform.Api2.Provisioning.csproj" />
+    <ProjectReference Include="..\SubscriptionPlatform.Client1.UserPortal\SubscriptionPlatform.Client1.UserPortal.csproj" />
+    <ProjectReference Include="..\SubscriptionPlatform.Client2.LearningPlatform\SubscriptionPlatform.Client2.LearningPlatform.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.RabbitMQ" Version="13.4.6" />
+    <PackageReference Include="Aspire.Hosting.SqlServer" Version="13.4.6" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UserSecretsId>ad3d8931-9fc2-4487-bf4a-8cbce9defa80</UserSecretsId>
+  </PropertyGroup>
+
+</Project>

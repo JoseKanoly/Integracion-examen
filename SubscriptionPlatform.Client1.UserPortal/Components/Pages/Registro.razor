@@ -1,0 +1,99 @@
+@page "/registro"
+@layout SubscriptionPlatform.Client1.UserPortal.Components.Layout.AuthLayout
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Authentication.Cookies
+@using SubscriptionPlatform.Client1.UserPortal.Services
+@inject ISubscriptionService SubscriptionService
+@inject NavigationManager Navigation
+
+<PageTitle>Crear Cuenta - EduPlatform</PageTitle>
+
+<div class="auth-wrapper">
+    <div class="auth-card">
+        <div class="auth-header">
+            <div class="auth-logo">🎓</div>
+            <h2>Crea tu cuenta</h2>
+            <p class="text-muted">Únete y accede a cursos de calidad</p>
+        </div>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger py-2" role="alert">
+                <i class="bi bi-exclamation-circle"></i> @errorMessage
+            </div>
+        }
+
+        <EditForm Model="Input" method="post" OnValidSubmit="HandleRegister" FormName="registerForm">
+            <div class="mb-3">
+                <label class="form-label">Nombre completo</label>
+                <InputText @bind-Value="Input.FullName" class="form-control form-control-lg"
+                           placeholder="Juan Pérez" autocomplete="name" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Correo electrónico</label>
+                <InputText @bind-Value="Input.Email" class="form-control form-control-lg"
+                           placeholder="tu@email.com" type="email" autocomplete="username" />
+            </div>
+            <div class="mb-4">
+                <label class="form-label">Contraseña</label>
+                <InputText @bind-Value="Input.Password" class="form-control form-control-lg"
+                           placeholder="Mínimo 6 caracteres" type="password" autocomplete="new-password" />
+            </div>
+            <button type="submit" class="btn btn-primary btn-lg w-100 auth-btn">
+                Crear Cuenta
+            </button>
+        </EditForm>
+
+        <div class="auth-footer">
+            ¿Ya tienes cuenta?
+            <a href="/login">Inicia sesión</a>
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromForm]
+    private RegisterRequest Input { get; set; } = new();
+
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    private string errorMessage = "";
+
+    private async Task HandleRegister()
+    {
+        if (string.IsNullOrWhiteSpace(Input.FullName) ||
+            string.IsNullOrWhiteSpace(Input.Email) ||
+            string.IsNullOrWhiteSpace(Input.Password))
+        {
+            errorMessage = "Completa todos los campos";
+            return;
+        }
+
+        var result = await SubscriptionService.RegisterAsync(Input);
+
+        if (!result.Success)
+        {
+            errorMessage = result.Message;
+            return;
+        }
+
+        // Auto-login tras el registro
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, result.UserId.ToString()),
+            new(ClaimTypes.Email, result.Email),
+            new(ClaimTypes.Name, result.FullName)
+        };
+
+        var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+
+        await HttpContext!.SignInAsync(
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            new ClaimsPrincipal(identity),
+            new AuthenticationProperties { IsPersistent = true });
+
+        Navigation.NavigateTo("/dashboard", forceLoad: true);
+    }
+}

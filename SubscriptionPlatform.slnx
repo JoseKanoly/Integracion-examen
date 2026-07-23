@@ -1,0 +1,9 @@
+<Solution>
+  <Project Path="SubscriptionPlatform.Api1.Subscriptions/SubscriptionPlatform.Api1.Subscriptions.csproj" />
+  <Project Path="SubscriptionPlatform.Api2.Provisioning/SubscriptionPlatform.Api2.Provisioning.csproj" />
+  <Project Path="SubscriptionPlatform.AppHost/SubscriptionPlatform.AppHost.csproj" />
+  <Project Path="SubscriptionPlatform.Client1.UserPortal/SubscriptionPlatform.Client1.UserPortal.csproj" />
+  <Project Path="SubscriptionPlatform.Client2.LearningPlatform/SubscriptionPlatform.Client2.LearningPlatform.csproj" />
+  <Project Path="SubscriptionPlatform.ServiceDefaults/SubscriptionPlatform.ServiceDefaults.csproj" />
+  <Project Path="SubscriptionPlatform.Shared/SubscriptionPlatform.Shared.csproj" />
+</Solution>

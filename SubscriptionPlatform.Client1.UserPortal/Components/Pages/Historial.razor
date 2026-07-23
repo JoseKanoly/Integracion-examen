@@ -1,0 +1,137 @@
+@page "/historial"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@using SubscriptionPlatform.Client1.UserPortal.Services
+@inject ISubscriptionService SubscriptionService
+@inject ILogger<Historial> Logger
+
+<PageTitle>Historial de Pagos - EduPlatform</PageTitle>
+
+<div class="page-hero">
+    <div class="container-xl">
+        <h1><i class="bi bi-receipt"></i> Historial de Pagos</h1>
+        <p>Todos tus cobros de suscripción, del más reciente al más antiguo</p>
+    </div>
+</div>
+
+<div class="container-xl py-4">
+    @if (loading)
+    {
+        <div class="d-flex justify-content-center py-5">
+            <div class="spinner-border text-primary"></div>
+        </div>
+    }
+    else
+    {
+        <div class="row g-4 mb-4">
+            <div class="col-md-4">
+                <div class="stat-card stat-card-primary">
+                    <div class="stat-icon"><i class="bi bi-cash-stack"></i></div>
+                    <div>
+                        <div class="stat-label">Total Pagado</div>
+                        <div class="stat-value">$@payments.Sum(p => p.Amount).ToString("0.00")</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stat-card stat-card-info">
+                    <div class="stat-icon"><i class="bi bi-receipt-cutoff"></i></div>
+                    <div>
+                        <div class="stat-label">Pagos Realizados</div>
+                        <div class="stat-value">@payments.Count</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stat-card stat-card-success">
+                    <div class="stat-icon"><i class="bi bi-calendar-check"></i></div>
+                    <div>
+                        <div class="stat-label">Último Pago</div>
+                        <div class="stat-value fs-4">
+                            @(payments.Count > 0 ? payments[0].PaidAt.ToLocalTime().ToString("dd MMM yyyy") : "—")
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <div class="content-card-header">
+                <h5><i class="bi bi-clock-history"></i> Detalle de Transacciones</h5>
+                <a href="/dashboard" class="btn btn-sm btn-outline-primary">← Volver al panel</a>
+            </div>
+            <div class="p-3">
+                @if (payments.Count == 0)
+                {
+                    <div class="text-center py-5 text-muted">
+                        <i class="bi bi-inbox display-4 d-block mb-3"></i>
+                        Aún no tienes pagos registrados.<br />
+                        <a href="/dashboard" class="btn btn-primary mt-3">Elegir un plan</a>
+                    </div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-modern align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Fecha y Hora</th>
+                                    <th>ID de Pago</th>
+                                    <th>Plan</th>
+                                    <th>Método de Pago</th>
+                                    <th class="text-end">Monto</th>
+                                    <th class="text-center">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var p in payments)
+                                {
+                                    <tr>
+                                        <td>@p.PaidAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</td>
+                                        <td><code class="small">@p.PaymentId.ToString()[..8]...</code></td>
+                                        <td><span class="badge badge-soft-primary">@p.PlanType</span></td>
+                                        <td>@p.PaymentMethod</td>
+                                        <td class="text-end fw-semibold">$@p.Amount.ToString("0.00")</td>
+                                        <td class="text-center"><span class="badge badge-soft-success">@p.Status</span></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<PaymentHistoryEntry> payments = new();
+    private bool loading = true;
+    private Guid userId;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthState { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthState != null)
+        {
+            var auth = await AuthState;
+            var idClaim = auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            Guid.TryParse(idClaim, out userId);
+        }
+
+        try
+        {
+            payments = await SubscriptionService.GetPaymentHistoryAsync(userId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Error cargando historial: {ex}");
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+}
