@@ -12,6 +12,7 @@ public interface ISubscriptionService
     Task<AuthResponse> LoginAsync(LoginRequest request);
     Task<object?> GetPendingMessagesAsync();
     Task<object?> GetStatsAsync();
+    Task<PaymentResponse> SendInvalidTestEventAsync(Guid userId);
 }
 
 public class SubscriptionService : ISubscriptionService
@@ -176,6 +177,32 @@ public class SubscriptionService : ISubscriptionService
         {
             _logger.LogError($"Error obteniendo estadísticas: {ex.Message}");
             return null;
+        }
+    }
+
+    public async Task<PaymentResponse> SendInvalidTestEventAsync(Guid userId)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsync(
+                $"api/subscription/send-invalid-event/{userId}", null);
+
+            if (response.IsSuccessStatusCode)
+            {
+                return new PaymentResponse
+                {
+                    Success = true,
+                    Message = "Mensaje inválido enviado a la cola."
+                };
+            }
+
+            _logger.LogWarning($"Error enviando evento inválido: {response.StatusCode}");
+            return new PaymentResponse { Success = false, Message = $"Error: {response.StatusCode}" };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Excepción enviando evento inválido: {ex.Message}");
+            return new PaymentResponse { Success = false, Message = ex.Message };
         }
     }
 }

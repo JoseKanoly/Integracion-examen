@@ -222,6 +222,40 @@ public class SubscriptionController : ControllerBase
         });
     }
 
+    /// <summary>
+    /// Publica un evento de pago INTENCIONALMENTE inválido (mensaje predefinido) para
+    /// demostrar el flujo de rechazo automático a la Dead Letter Queue: API2 lo validará,
+    /// fallará y lo enviará (BasicNack) a la DLQ, registrándolo en DeadLetterMessages.
+    /// </summary>
+    [HttpPost("send-invalid-event/{userId}")]
+    public async Task<ActionResult> SendInvalidEvent(Guid userId)
+    {
+        // Mensaje predefinido inválido: monto negativo y plan inexistente.
+        var invalidEvent = new PaymentProcessedEvent
+        {
+            UserId = userId == Guid.Empty ? Guid.NewGuid() : userId,
+            PaymentId = Guid.NewGuid(),
+            Amount = -1m,
+            PlanType = "PlanInexistente",
+            ProcessedAt = DateTime.UtcNow,
+            PaymentMethod = "Tarjeta de Prueba",
+            Email = "invalido@example.com"
+        };
+
+        await _messagePublisher.PublishAsync(invalidEvent, PaymentQueueConfig.QueueName);
+
+        _logger.LogWarning(
+            "Evento invalido de prueba publicado en la cola. " +
+            "API2 debe rechazarlo automaticamente a la Dead Letter Queue.");
+
+        return Ok(new
+        {
+            success = true,
+            message = "Mensaje inválido enviado a la cola. API2 lo rechazará a la Dead Letter Queue.",
+            payload = invalidEvent
+        });
+    }
+
     private bool IsValidPlanType(string planType)
     {
         return new[] { "Basic", "Premium", "Enterprise" }.Contains(planType);

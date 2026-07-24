@@ -5,6 +5,15 @@
     <ProjectReference Include="..\SubscriptionPlatform.ServiceDefaults\SubscriptionPlatform.ServiceDefaults.csproj" />
   </ItemGroup>
 
+  <!-- Scope identifiers explícitos para el CSS aislado: sin esto, el SDK 10.0.301
+       genera hashes distintos para el componente y para el bundle, y los estilos con
+       scope no se aplican. -->
+  <ItemGroup>
+    <None Update="Components/Layout/MainLayout.razor.css" CssScope="b-mainlayout01" />
+    <None Update="Components/Layout/NavMenu.razor.css" CssScope="b-navmenu0001" />
+    <None Update="Components/Layout/ReconnectModal.razor.css" CssScope="b-reconnect01" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>

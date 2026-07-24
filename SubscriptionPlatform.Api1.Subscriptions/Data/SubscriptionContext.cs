@@ -20,7 +20,7 @@ public class SubscriptionContext : DbContext
         {
             entity.HasKey(e => e.Id);
             entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("GETUTCDATE()")
+                .HasDefaultValueSql("now()")
                 .ValueGeneratedOnAdd();
             entity.Property(e => e.EventType)
                 .IsRequired()
@@ -46,7 +46,7 @@ public class SubscriptionContext : DbContext
                 .HasMaxLength(50)
                 .HasDefaultValue("Basic");
             entity.Property(e => e.SubscriptionDate)
-                .HasDefaultValueSql("GETUTCDATE()");
+                .HasDefaultValueSql("now()");
             entity.Property(e => e.IsActive).HasDefaultValue(true);
 
             entity.Property(e => e.PasswordHash)
@@ -73,7 +73,7 @@ public class SubscriptionContext : DbContext
                 .HasMaxLength(50)
                 .HasDefaultValue("Completado");
             entity.Property(e => e.PaidAt)
-                .HasDefaultValueSql("GETUTCDATE()");
+                .HasDefaultValueSql("now()");
             entity.Property(e => e.Amount)
                 .HasColumnType("decimal(10,2)");
 

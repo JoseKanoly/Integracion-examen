@@ -234,6 +234,41 @@
             </div>
         </div>
 
+        <!-- PROBAR DEAD LETTER QUEUE -->
+        <div class="content-card mb-4">
+            <div class="content-card-header">
+                <h5><i class="bi bi-envelope-exclamation"></i> Probar Dead Letter Queue</h5>
+                <span class="text-muted small">Envía un evento inválido a la cola para ver el rechazo automático a la DLQ</span>
+            </div>
+            <div class="p-3">
+                <p class="text-muted small mb-2">
+                    Mensaje predefinido (inválido: monto negativo y plan inexistente). Al enviarlo,
+                    la API de aprovisionamiento lo validará, lo rechazará y lo registrará en la
+                    Dead Letter Queue.
+                </p>
+                <pre class="bg-light border rounded p-3 mb-3"><code>{
+  "userId": "@userId",
+  "amount": -1,
+  "planType": "PlanInexistente",
+  "paymentMethod": "Tarjeta de Prueba",
+  "email": "invalido@@example.com"
+}</code></pre>
+
+                <button class="btn btn-outline-danger" @onclick="SendInvalidEvent" disabled="@sendingDlq">
+                    @if (sendingDlq)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1"></span>
+                    }
+                    <i class="bi bi-send"></i> Enviar a la cola
+                </button>
+
+                @if (!string.IsNullOrEmpty(dlqMessage))
+                {
+                    <div class="alert @dlqAlertClass mt-3 mb-0" role="alert">@dlqMessage</div>
+                }
+            </div>
+        </div>
+
         <div class="alert alert-info d-flex align-items-center gap-2">
             <i class="bi bi-mortarboard fs-4"></i>
             <div>
@@ -261,6 +296,10 @@
     private string message = "";
     private string alertClass = "alert-info";
     private string selectedPaymentMethod = "Tarjeta de Crédito";
+
+    private bool sendingDlq = false;
+    private string dlqMessage = "";
+    private string dlqAlertClass = "alert-info";
 
     private Guid userId;
     private string userName = "";
@@ -356,6 +395,40 @@
         finally
         {
             processing = false;
+        }
+    }
+
+    private async Task SendInvalidEvent()
+    {
+        try
+        {
+            sendingDlq = true;
+            dlqAlertClass = "alert-info";
+            dlqMessage = "Enviando mensaje invalido a la cola...";
+
+            var response = await SubscriptionService.SendInvalidTestEventAsync(userId);
+
+            if (response.Success)
+            {
+                dlqAlertClass = "alert-success";
+                dlqMessage = "Mensaje invalido enviado. La API de aprovisionamiento lo rechazara "
+                    + "automaticamente a la Dead Letter Queue.";
+            }
+            else
+            {
+                dlqAlertClass = "alert-danger";
+                dlqMessage = response.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            dlqAlertClass = "alert-danger";
+            dlqMessage = $"Error: {ex.Message}";
+            Logger.LogError($"Error enviando evento invalido: {ex}");
+        }
+        finally
+        {
+            sendingDlq = false;
         }
     }
 

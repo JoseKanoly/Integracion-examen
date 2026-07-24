@@ -27,7 +27,7 @@ public class ProvisioningContext : DbContext
                 .IsRequired()
                 .HasMaxLength(255);
             entity.Property(e => e.ActivatedAt)
-                .HasDefaultValueSql("GETUTCDATE()");
+                .HasDefaultValueSql("now()");
 
             entity.HasIndex(e => e.UserId)
                 .HasDatabaseName("idx_user_access_userid")
@@ -45,7 +45,7 @@ public class ProvisioningContext : DbContext
                 .IsRequired()
                 .HasMaxLength(100);
             entity.Property(e => e.UnlockedAt)
-                .HasDefaultValueSql("GETUTCDATE()");
+                .HasDefaultValueSql("now()");
 
             entity.HasIndex(e => new { e.UserId, e.CourseId })
                 .HasDatabaseName("idx_course_permission_user_course")
@@ -66,7 +66,7 @@ public class ProvisioningContext : DbContext
                 .IsRequired()
                 .HasMaxLength(1000);
             entity.Property(e => e.ReceivedAt)
-                .HasDefaultValueSql("GETUTCDATE()");
+                .HasDefaultValueSql("now()");
 
             entity.HasIndex(e => e.ReceivedAt)
                 .HasDatabaseName("idx_dlm_received_at");

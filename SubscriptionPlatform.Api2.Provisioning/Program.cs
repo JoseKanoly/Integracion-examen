@@ -11,11 +11,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? throw new InvalidOperationException("Cadena de conexión no configurada");
-
-builder.Services.AddDbContext<ProvisioningContext>(options =>
-    options.UseSqlServer(connectionString));
+builder.AddNpgsqlDbContext<ProvisioningContext>("provisioningdb");
 
 var rabbitMQConnectionString = builder.Configuration.GetConnectionString("RabbitMQ")
     ?? "amqp://guest:guest@localhost:5672/";
@@ -74,9 +70,9 @@ app.MapControllers();
 app.MapDefaultEndpoints();
 
 Console.WriteLine("═════════════════════════════════════════════════════════════");
-Console.WriteLine("🚀 API 2 - APROVISIONAMIENTO");
+Console.WriteLine(" API 2 - APROVISIONAMIENTO");
 Console.WriteLine("═════════════════════════════════════════════════════════════");
-Console.WriteLine($"📍 RabbitMQ: {rabbitMQConnectionString}");
+Console.WriteLine($" RabbitMQ: {rabbitMQConnectionString}");
 Console.WriteLine("✓ Dead Letter Queue: ACTIVADA");
 Console.WriteLine("✓ Validación de eventos: ACTIVADA");
 Console.WriteLine("═════════════════════════════════════════════════════════════");
